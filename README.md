@@ -1,0 +1,2 @@
+# haskellAdventureGame
+Haskell coursework project
