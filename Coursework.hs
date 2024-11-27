@@ -1,5 +1,5 @@
 import Data.List (delete, elemIndex, sort)
-import Text.Read (readMaybe)
+import Data.Char (isDigit)
 ------------------------- Game world types
 
 type Character = String
@@ -24,11 +24,11 @@ testGame i = Game [(0,1)] i ["Russell"] [[],["Brouwer","Heyting"]]
 
 connected :: Map -> Node -> [Node]
 connected [] node = []
-connected (x:xs) node 
+connected (x:xs) node
     |node == fst x || node == snd x = connection x node : connected xs node
-    |otherwise = connected xs node 
-    where 
-        connection places node 
+    |otherwise = connected xs node
+    where
+        connection places node
             |node == fst places = snd places
             |otherwise       = fst places
 
@@ -36,7 +36,7 @@ connect :: Node -> Node -> Map -> Map
 connect node1 node2 placeConnections
     |node1 == node2 = placeConnections
     |otherwise = compare (min node1 node2, max node1 node2) placeConnections
-    where    
+    where
         compare (node1, node2) connections =
             takeWhile (\(n,_) -> n < node1) connections ++
             sort (node1,node2) (takeWhile (\(n,_) -> n == node1) (dropWhile (\(n,_) -> n < node1) connections)) ++
@@ -51,17 +51,17 @@ connect node1 node2 placeConnections
 disconnect :: Node -> Node -> Map -> Map
 disconnect node1 node2 (x:xs) =
     helper (min node1 node2, max node1 node2) (x:xs)
-    where 
+    where
         helper (node1, node2) [] = []
         helper (node1, node2) (x:xs)
             |(node1, node2) == x  = xs
             |otherwise = x : helper (node1,node2) xs
- 
+
 add :: Party -> Event
 add _ Over = Over
-add p (Game map node currentParty partys) = 
+add p (Game map node currentParty partys) =
     Game map node (noDup p currentParty) partys
-    where 
+    where
         noDup newCharacter current =  newCharacter ++ filter (`notElem` newCharacter) current
 
 addAt :: Node -> Party -> Event
@@ -81,9 +81,9 @@ addHereAt node party (x:xs) = x : addHereAt (node-1) party xs
 
 remove :: Party -> Event
 remove _ Over = Over
-remove p (Game map node currentParty partys) = 
+remove p (Game map node currentParty partys) =
     Game map node (removeHelper p currentParty) partys
-    where 
+    where
         removeHelper [] currentParty     = currentParty
         removeHelper (x:xs) currentParty = removeHelper xs (delete x currentParty)
 
@@ -137,45 +137,62 @@ dialogue game (Action string event) = do
     return (event game)
 
 dialogue game (Branch test option1 option2) = do
-    if test game 
+    if test game
         then do
             dialogue game option1
-        else   
+        else
             dialogue game option2
 
 --------- make simpler by using multiple functions
-dialogue game (Choice string choices) = do 
+dialogue game (Choice string choices) = do
     putStrLn string
     if null choices
       then do return game
-      else do 
-        let indexed_list = zip [1..] choices 
+      else do
+        let indexed_list = zip [1..] choices
         helperShow indexed_list
-        putStr (prompt ++ " ")
-        input <- getLine
-        if input == "0"
-          then do 
-            return game
-          else do
-            putStrLn ""
-            if read input >= 1 && read input <= length choices
-                then do 
-                    dialogue game (snd (choices !! (read input - 1)))
-                else do 
-                    dialogue game (Choice string choices) 
+        dialogueLoop game (Choice string choices)
 
           where
             helperShow [] = return ()
             helperShow ((number,(option, _)) : xs) = do
-                putStrLn (show number ++": " ++ option) 
+                putStrLn (show number ++": " ++ option)
                 helperShow xs
+
+            isValidSingleNumber :: String -> Bool
+            isValidSingleNumber input =
+                let trimmed = dropWhile (== ' ') input
+                in all isDigit trimmed && length (words trimmed) == 1
+
+            dialogueLoop :: Game -> Dialogue -> IO Game
+            dialogueLoop game (Choice string choices) = do
+              putStr (prompt ++ " ")
+              input <- getValidInput
+              if input == "0"  -- Check for "0" first to handle exit or dialogue termination
+                then return game  -- End dialogue or game
+                else do
+                  let inputs = words input  -- Split input into separate tokens by spaces
+                  if "0" `elem` inputs
+                    then do return game  
+                    else if not (all isDigit input)  
+                      then do
+                        putStrLn line6
+                        dialogueLoop game (Choice string choices)
+                      else do
+                        if read (head inputs) >= 1 && read (head inputs) <= length choices
+                            then do
+                                putStrLn ""
+                                dialogue game (snd (choices !! (read (head inputs) - 1)))
+                            else do
+                                putStrLn line6
+                                dialogueLoop game (Choice string choices)
 
 findDialogue :: Party -> Dialogue
 findDialogue party  = findHelper party theDialogues
-  where 
+  where
     findHelper party [] = Action line0 id
-    findHelper party ((x,y):xs) = 
-      if party == x 
+    findHelper party ((x,y):xs) =
+      if party == x
         then y
         else findHelper party xs
 
@@ -205,59 +222,85 @@ step (Game m n currentParty partys) = do
   lineChecker 3 (zip [length displayedConnections + 1..] currentParty)
   lineChecker 4 (zip [length displayedConnections + length currentParty + 1..] (partys !! n))
   putStrLn line5
-  putStr (prompt ++ " ")
+  stepLoop (Game m n currentParty partys)
 
-
-  x <- getLine
-  if x == "0" 
-    then do
-      return Over
-    else do
-      let choices = (parse . tokenize) x
-      if not (null choices) && head choices <= length displayedConnections 
-        then do 
-          let Just newNode = elemIndex (displayedConnections !! (head choices - 1)) theLocations 
-          putStrLn ""
-          return (Game m newNode currentParty partys) 
-        else 
-          if all (\choice -> choice <= length allOptions) choices 
-            then do 
-              let selectedParty = (sort . map (\choice -> snd (allOptions !! (choice - 1)))) choices 
+  where
+    stepLoop :: Game -> IO Game
+    stepLoop (Game m n currentParty partys) = do
+      putStr (prompt ++ " ")
+      x <- getValidInput
+      if x == "0"
+        then do
+          return Over
+        else do
+          let choices = (parse . tokenize) x
+          if not (null choices) && head choices <= length displayedConnections
+            then do
+              let Just newNode = elemIndex (displayedConnections !! (head choices - 1)) theLocations
               putStrLn ""
-              dialogue (Game m n currentParty partys) (findDialogue selectedParty)
-            else do
-            putStrLn line6 
-            return (Game m n currentParty partys)
-            
-    where  
-      tokenize :: String -> [String]
-      tokenize [] = []
-      tokenize s = let token = takeWhile (/= ' ') s
-                       rest  = dropWhile (== ' ') (dropWhile (/= ' ') s)
-                  in token : tokenize rest
-      
-      parse :: [String] -> [Int]
-      parse [] = []
-      parse (x:xs) = read x : parse xs
+              return (Game m newNode currentParty partys)
+            else
+              if all (\choice -> choice <= length allOptions) choices
+                then do
+                  let selectedParty = (sort . map (\choice -> snd (allOptions !! (choice - 1)))) choices
+                  putStrLn ""
+                  dialogue (Game m n currentParty partys) (findDialogue selectedParty)
+                else do
+                  putStrLn "There is nothing we can do."
+                  stepLoop (Game m n currentParty partys)
 
-      displayedConnections = map (theLocations !!) (connected m n)
-      allOptions = zip [1..] (displayedConnections ++ currentParty ++ (partys !! n))
+    displayedConnections :: [String]
+    displayedConnections = map (theLocations !!) (connected m n)
+
+    allOptions :: [(Int, String)]
+    allOptions = zip [1..] (displayedConnections ++ currentParty ++ (partys !! n))
+
+tokenize :: String -> [String]
+tokenize [] = []
+tokenize s =
+  let token = takeWhile (/= ' ') s
+      rest = dropWhile (== ' ') (dropWhile (/= ' ') s)
+  in token : tokenize rest
+
+parse :: [String] -> [Int]
+parse = map read
 
 game :: IO ()
 game = loop start
-  where 
+  where
     loop :: Game -> IO()
     loop gameState = do
       if gameState == Over
-        then do 
+        then do
           return ()
         else do
           newState <- step gameState
           loop newState
-      
+
 ------------------------- Assignment 4: Safety upgrades
 
 line6 = "[Unrecognized input]"
+
+getValidInput :: IO String
+getValidInput = do
+  let isAllowed :: Char -> Bool
+      isAllowed c = isDigit c || c == ' '
+
+  let isValidInput :: String -> Bool
+      isValidInput x = not (null trimmed) && all isAllowed trimmed
+        where trimmed = dropWhile (== ' ') x
+
+  x <- getLine
+  if "0" `elem` words x
+    then do return "0"
+    else do 
+      let trimmed = dropWhile (== ' ') x
+      if isValidInput trimmed
+        then return trimmed
+        else do
+          putStrLn line6
+          putStr (prompt ++ " ")
+          getValidInput
 
 ------------------------- Assignment 5: Solving the game
 
