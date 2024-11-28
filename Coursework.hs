@@ -1,5 +1,6 @@
-import Data.List (delete, elemIndex, sort)
+import Data.List (delete, elemIndex, sort, subsequences)
 import Data.Char (isDigit)
+
 ------------------------- Game world types
 
 type Character = String
@@ -160,18 +161,16 @@ dialogue game (Choice string choices) = do
                 helperShow xs
 
             isValidSingleNumber :: String -> Bool
-            isValidSingleNumber input =
-                let trimmed = dropWhile (== ' ') input
-                in all isDigit trimmed && length (words trimmed) == 1
+            isValidSingleNumber input = all isDigit (head (words input)) && length (words input) == 1
 
             dialogueLoop :: Game -> Dialogue -> IO Game
             dialogueLoop game (Choice string choices) = do
               putStr (prompt ++ " ")
               input <- getValidInput
-              if input == "0"  -- Check for "0" first to handle exit or dialogue termination
-                then return game  -- End dialogue or game
+              if input == "0"  
+                then return game
                 else do
-                  let inputs = words input  -- Split input into separate tokens by spaces
+                  let inputs = words input  
                   if "0" `elem` inputs
                     then do return game  
                     else if not (all isDigit input)  
@@ -233,20 +232,19 @@ step (Game m n currentParty partys) = do
         then do
           return Over
         else do
-          let choices = (parse . tokenize) x
-          if not (null choices) && head choices <= length displayedConnections
+          let choices = (parse . words) x
+          if not (null choices) && head choices <= length displayedConnections && length choices == 1
             then do
               let Just newNode = elemIndex (displayedConnections !! (head choices - 1)) theLocations
               putStrLn ""
               return (Game m newNode currentParty partys)
             else
-              if all (\choice -> choice <= length allOptions) choices
+              if all (\choice -> choice <= length allOptions && choice > length displayedConnections) choices
                 then do
                   let selectedParty = (sort . map (\choice -> snd (allOptions !! (choice - 1)))) choices
-                  putStrLn ""
                   dialogue (Game m n currentParty partys) (findDialogue selectedParty)
                 else do
-                  putStrLn "There is nothing we can do."
+                  putStrLn line6
                   stepLoop (Game m n currentParty partys)
 
     displayedConnections :: [String]
@@ -254,13 +252,6 @@ step (Game m n currentParty partys) = do
 
     allOptions :: [(Int, String)]
     allOptions = zip [1..] (displayedConnections ++ currentParty ++ (partys !! n))
-
-tokenize :: String -> [String]
-tokenize [] = []
-tokenize s =
-  let token = takeWhile (/= ' ') s
-      rest = dropWhile (== ' ') (dropWhile (/= ' ') s)
-  in token : tokenize rest
 
 parse :: [String] -> [Int]
 parse = map read
@@ -287,21 +278,18 @@ getValidInput = do
       isAllowed c = isDigit c || c == ' '
 
   let isValidInput :: String -> Bool
-      isValidInput x = not (null trimmed) && all isAllowed trimmed
-        where trimmed = dropWhile (== ' ') x
+      isValidInput x = not (null (words x)) && all isAllowed x
 
   x <- getLine
   if "0" `elem` words x
     then do return "0"
     else do 
-      let trimmed = dropWhile (== ' ') x
-      if isValidInput trimmed
-        then return trimmed
+      if isValidInput x
+        then return x
         else do
           putStrLn line6
           putStr (prompt ++ " ")
           getValidInput
-
 ------------------------- Assignment 5: Solving the game
 
 data Command  = Travel [Int] | Select Party | Talk [Int]
@@ -310,16 +298,29 @@ data Command  = Travel [Int] | Select Party | Talk [Int]
 type Solution = [Command]
 
 talk ::Game -> Dialogue -> [(Game,[Int])]
-talk = undefined
+talk game = undefined
+-- talk game (Action _ event) = [(event game,[])]
+
+-- talk game (Branch test option1 option2)
+--   |test game = talk game option1
+--   |otherwise = talk game option2
+
+-- talk game (Choice _ choices) = 
+--   (map (iterChoice game) (zip [0..] choices))
+--   where 
+--     iterChoice game (index, (_, option)) = index : talk game option
+--     final result = ()
+
 
 select :: Game -> [Party]
-select = undefined
+select (Game m n currentParty partys) = subsequences (currentParty ++ partys !! n)
 
 travel :: Map -> Node -> [(Node,[Int])]
-travel = undefined
+travel m n = undefined
+  
 
 allSteps :: Game -> [(Solution,Game)]
-allSteps = undefined
+allSteps = undefined 
 
 solve :: Game -> Solution
 solve = undefined
