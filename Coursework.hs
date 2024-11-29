@@ -1,6 +1,21 @@
-import Data.List (delete, elemIndex, sort, subsequences)
+import Data.List (delete, elemIndex, sort, subsequences, (\\))
 import Data.Char (isDigit)
 
+merge :: Ord a => [a] -> [a] -> [a]
+merge xs [] = xs
+merge [] ys = ys
+merge (x:xs) (y:ys)
+    | x <  y    = x : merge    xs (y:ys)
+    | x == y    = x : merge    xs    ys
+    | otherwise = y : merge (x:xs)   ys
+
+msort :: Ord a => [a] -> [a]
+msort []  = []
+msort [x] = [x]
+msort xs  = msort (take n xs) `merge` msort (drop n xs)
+  where
+    n = length xs `div` 2
+    
 ------------------------- Game world types
 
 type Character = String
@@ -29,34 +44,20 @@ connected (x:xs) node
     |node == fst x || node == snd x = connection x node : connected xs node
     |otherwise = connected xs node
     where
-        connection places node
+        connection places node                      
             |node == fst places = snd places
             |otherwise       = fst places
 
 connect :: Node -> Node -> Map -> Map
 connect node1 node2 placeConnections
     |node1 == node2 = placeConnections
-    |otherwise = compare (min node1 node2, max node1 node2) placeConnections
-    where
-        compare (node1, node2) connections =
-            takeWhile (\(n,_) -> n < node1) connections ++
-            sort (node1,node2) (takeWhile (\(n,_) -> n == node1) (dropWhile (\(n,_) -> n < node1) connections)) ++
-            dropWhile (\(n,_) -> n <= node1) connections
-
-        sort (node1, node2) [] = [(node1, node2)]
-        sort (node1, node2) (x:xs)
-            |(node1, node2) == x = xs
-            |node2 < snd x = (node1, node2):x:xs
-            |otherwise     = x: sort (node1, node2) xs
+    |newConnection `elem`  placeConnections = filter (/= newConnection) placeConnections
+    |otherwise = msort ((min node1 node2, max node1 node2) :  placeConnections)
+    where 
+      newConnection = (min node1 node2, max node1 node2)  
 
 disconnect :: Node -> Node -> Map -> Map
-disconnect node1 node2 (x:xs) =
-    helper (min node1 node2, max node1 node2) (x:xs)
-    where
-        helper (node1, node2) [] = []
-        helper (node1, node2) (x:xs)
-            |(node1, node2) == x  = xs
-            |otherwise = x : helper (node1,node2) xs
+disconnect node1 node2 (x:xs) = filter (/= (min node1 node2, max node1 node2)) (x:xs)
 
 add :: Party -> Event
 add _ Over = Over
@@ -82,11 +83,7 @@ addHereAt node party (x:xs) = x : addHereAt (node-1) party xs
 
 remove :: Party -> Event
 remove _ Over = Over
-remove p (Game map node currentParty partys) =
-    Game map node (removeHelper p currentParty) partys
-    where
-        removeHelper [] currentParty     = currentParty
-        removeHelper (x:xs) currentParty = removeHelper xs (delete x currentParty)
+remove p (Game map node currentParty partys) = Game map node (currentParty \\ p) partys
 
 removeAt :: Node -> Party -> Event
 removeAt _ _ Over = Over
@@ -103,7 +100,6 @@ removeAtHere _ [] partylist  = partylist
 removeAtHere _ _ []          = []
 removeAtHere 0 (p:ps) (x:xs) = removeAtHere 0 ps (delete p x : xs)
 removeAtHere node ps (x:xs)  = x : removeAtHere (node - 1) ps xs
-
 
 ------------------------- Assignment 2: Dialogues
 
@@ -242,7 +238,12 @@ step (Game m n currentParty partys) = do
               if all (\choice -> choice <= length allOptions && choice > length displayedConnections) choices
                 then do
                   let selectedParty = (sort . map (\choice -> snd (allOptions !! (choice - 1)))) choices
-                  dialogue (Game m n currentParty partys) (findDialogue selectedParty)
+                  if isInList selectedParty theDialogues
+                    then do 
+                      dialogue (Game m n currentParty partys) (findDialogue selectedParty)
+                    else do 
+                      putStrLn line0
+                      stepLoop (Game m n currentParty partys)
                 else do
                   putStrLn line6
                   stepLoop (Game m n currentParty partys)
@@ -252,6 +253,9 @@ step (Game m n currentParty partys) = do
 
     allOptions :: [(Int, String)]
     allOptions = zip [1..] (displayedConnections ++ currentParty ++ (partys !! n))
+
+    isInList :: Eq a => a -> [(a, b)] -> Bool
+    isInList x xs = x `elem` [x' | (x', _) <- xs]    
 
 parse :: [String] -> [Int]
 parse = map read
