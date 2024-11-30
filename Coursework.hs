@@ -134,11 +134,7 @@ dialogue game (Action string event) = do
     return (event game)
 
 dialogue game (Branch test option1 option2) = do
-    if test game
-        then do
-            dialogue game option1
-        else
-            dialogue game option2
+    if test game then dialogue game option1 else dialogue game option2
 
 --------- make simpler by using multiple functions
 dialogue game (Choice string choices) = do
@@ -147,14 +143,15 @@ dialogue game (Choice string choices) = do
       then do return game
       else do
         let indexed_list = zip [1..] choices
-        helperShow indexed_list
+        displayChoices indexed_list
         dialogueLoop game (Choice string choices)
 
           where
-            helperShow [] = return ()
-            helperShow ((number,(option, _)) : xs) = do
-                putStrLn (show number ++": " ++ option)
-                helperShow xs
+            displayChoices :: (Show a, Show b) => [(a,(b, w))] -> IO ()
+            displayChoices [] = return ()
+            displayChoices ((number,(option, _)) : xs) = do
+                putStrLn (show number ++": " ++ show option)
+                displayChoices xs
 
             isValidSingleNumber :: String -> Bool
             isValidSingleNumber input = all isDigit (head (words input)) && length (words input) == 1
@@ -163,24 +160,18 @@ dialogue game (Choice string choices) = do
             dialogueLoop game (Choice string choices) = do
               putStr (prompt ++ " ")
               input <- getValidInput
-              if input == "0"  
-                then return game
-                else do
-                  let inputs = words input  
-                  if "0" `elem` inputs
-                    then do return game  
-                    else if not (all isDigit input)  
-                      then do
-                        putStrLn line6
-                        dialogueLoop game (Choice string choices)
-                      else do
-                        if read (head inputs) >= 1 && read (head inputs) <= length choices
-                            then do
-                                putStrLn ""
-                                dialogue game (snd (choices !! (read (head inputs) - 1)))
-                            else do
-                                putStrLn line6
-                                dialogueLoop game (Choice string choices)
+              if input == "0"
+                then do return game
+                else do 
+                  let parsedInput = map read (words input)
+                  if null parsedInput || head parsedInput < 1 || head parsedInput > length choices || length parsedInput /= 1
+                    then do
+                      putStrLn line6
+                      dialogueLoop game (Choice string choices)
+                    else do
+                      let selectedDialogue = snd (choices !! (head parsedInput - 1))
+                      dialogue game selectedDialogue
+
 
 findDialogue :: Party -> Dialogue
 findDialogue party  = findHelper party theDialogues
@@ -224,29 +215,35 @@ step (Game m n currentParty partys) = do
     stepLoop (Game m n currentParty partys) = do
       putStr (prompt ++ " ")
       x <- getValidInput
-      if x == "0"
+      handleUserInput x (Game m n currentParty partys)
+
+    handleUserInput :: String -> Game -> IO Game
+    handleUserInput "0" _ = return Over
+    handleUserInput input game
+      | not (null parsedChoices) && head parsedChoices <= length displayedConnections = do
+          let Just newNode = elemIndex (displayedConnections !! (head parsedChoices - 1)) theLocations
+          return (Game m newNode currentParty partys)
+      | all (\choice -> choice > length displayedConnections && choice <= length allOptions) parsedChoices = do
+          let selectedParty = sort (map (\choice -> snd (allOptions !! (choice - 1))) parsedChoices)
+          handlePartyDialogue selectedParty game
+      | otherwise = do
+          putStrLn line6
+          stepLoop game
+      where
+        parsedChoices = parse (words input)
+
+    handlePartyDialogue :: [String] -> Game -> IO Game
+    handlePartyDialogue selectedParty game = do
+      if isInList selectedParty theDialogues
         then do
-          return Over
+          dialogue game (findDialogue selectedParty)
         else do
-          let choices = (parse . words) x
-          if not (null choices) && head choices <= length displayedConnections && length choices == 1
-            then do
-              let Just newNode = elemIndex (displayedConnections !! (head choices - 1)) theLocations
-              putStrLn ""
-              return (Game m newNode currentParty partys)
-            else
-              if all (\choice -> choice <= length allOptions && choice > length displayedConnections) choices
-                then do
-                  let selectedParty = (sort . map (\choice -> snd (allOptions !! (choice - 1)))) choices
-                  if isInList selectedParty theDialogues
-                    then do 
-                      dialogue (Game m n currentParty partys) (findDialogue selectedParty)
-                    else do 
-                      putStrLn line0
-                      stepLoop (Game m n currentParty partys)
-                else do
-                  putStrLn line6
-                  stepLoop (Game m n currentParty partys)
+          putStrLn line0
+          stepLoop game
+    
+    parse :: [String] -> [Int]
+    parse = map read
+  
 
     displayedConnections :: [String]
     displayedConnections = map (theLocations !!) (connected m n)
@@ -255,10 +252,7 @@ step (Game m n currentParty partys) = do
     allOptions = zip [1..] (displayedConnections ++ currentParty ++ (partys !! n))
 
     isInList :: Eq a => a -> [(a, b)] -> Bool
-    isInList x xs = x `elem` [x' | (x', _) <- xs]    
-
-parse :: [String] -> [Int]
-parse = map read
+    isInList x xs = x `elem` [x' | (x', _) <- xs]
 
 game :: IO ()
 game = loop start
@@ -266,11 +260,11 @@ game = loop start
     loop :: Game -> IO()
     loop gameState = do
       if gameState == Over
-        then do
-          return ()
-        else do
-          newState <- step gameState
-          loop newState
+      then do
+        return ()
+      else do
+        newState <- step gameState
+        loop newState
 
 ------------------------- Assignment 4: Safety upgrades
 
