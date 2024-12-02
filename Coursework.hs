@@ -37,16 +37,15 @@ testGame i = Game [(0,1)] i ["Russell"] [[],["Brouwer","Heyting"]]
 
 
 ------------------------- Assignment 1: The game world
-
 connected :: Map -> Node -> [Node]
-connected [] node = []
-connected (x:xs) node
-    |node == fst x || node == snd x = connection x node : connected xs node
-    |otherwise = connected xs node
-    where
-        connection places node                      
-            |node == fst places = snd places
-            |otherwise       = fst places
+connected (x:xs) n = connectedHelper (x:xs) n []
+  where 
+    connectedHelper [] node acc = reverse acc
+    connectedHelper (x:xs) node acc
+      |node == fst x = connectedHelper xs node (snd x : acc)
+      |node == snd x = connectedHelper xs node (fst x : acc)
+      |otherwise = connectedHelper xs node acc
+    
 
 connect :: Node -> Node -> Map -> Map
 connect node1 node2 placeConnections
@@ -147,7 +146,7 @@ dialogue game (Choice string choices) = do
         dialogueLoop game (Choice string choices)
 
           where
-            displayChoices :: (Show a, Show b) => [(a,(b, w))] -> IO ()
+            displayChoices :: (Show a, Show b) => [(a,(b, c))] -> IO ()
             displayChoices [] = return ()
             displayChoices ((number,(option, _)) : xs) = do
                 putStrLn (show number ++": " ++ show option)
@@ -244,7 +243,6 @@ step (Game m n currentParty partys) = do
     parse :: [String] -> [Int]
     parse = map read
   
-
     displayedConnections :: [String]
     displayedConnections = map (theLocations !!) (connected m n)
 
@@ -259,12 +257,10 @@ game = loop start
   where
     loop :: Game -> IO()
     loop gameState = do
-      if gameState == Over
-      then do
-        return ()
+      if gameState == Over then do return ()
       else do
         newState <- step gameState
-        loop newState
+        loop newState 
 
 ------------------------- Assignment 4: Safety upgrades
 
@@ -296,30 +292,31 @@ data Command  = Travel [Int] | Select Party | Talk [Int]
 type Solution = [Command]
 
 talk ::Game -> Dialogue -> [(Game,[Int])]
-talk game = undefined
--- talk game (Action _ event) = [(event game,[])]
+talk game (Action _ event) = [(event game,[])]
 
--- talk game (Branch test option1 option2)
---   |test game = talk game option1
---   |otherwise = talk game option2
+talk game (Branch test option1 option2)
+  |test game = talk game option1
+  |otherwise = talk  game option2
 
--- talk game (Choice _ choices) = 
---   (map (iterChoice game) (zip [0..] choices))
---   where 
---     iterChoice game (index, (_, option)) = index : talk game option
---     final result = ()
-
+talk game (Choice _ choices) = iterChoices (zip [1..] choices)
+  where
+    iterChoices :: [(Int, (String, Dialogue))] -> [(Game, [Int])]
+    iterChoices [] = []
+    iterChoices ((i, (_, d)):y) =
+      let currentResults = map (\(newGame, path) -> (newGame, i : path)) (talk game d)
+          remainingResults = iterChoices y
+      in currentResults ++ remainingResults 
 
 select :: Game -> [Party]
 select (Game m n currentParty partys) = subsequences (currentParty ++ partys !! n)
 
+--- bfs
 travel :: Map -> Node -> [(Node,[Int])]
 travel m n = undefined
-  
 
 allSteps :: Game -> [(Solution,Game)]
 allSteps = undefined 
-
+          
 solve :: Game -> Solution
 solve = undefined
 
