@@ -310,14 +310,31 @@ talk game (Choice _ choices) = iterChoices (zip [1..] choices)
 select :: Game -> [Party]
 select (Game m n currentParty partys) = subsequences (currentParty ++ partys !! n)
 
---- bfs
 travel :: Map -> Node -> [(Node,[Int])]
-travel m n = undefined
+travel m n =
+  search [(n,[])] [] []
+
+  where 
+    search [] _ routes = routes
+    search ((node,places):xs) explored routes
+      |node `elem` explored = search xs explored routes
+      |otherwise = 
+        let newNodes = connected m node
+            choiceNewNode = zip [1..] newNodes
+            newQueue = makeNewQueue xs choiceNewNode places explored
+        in search newQueue (explored ++ [node]) (routes ++ [(node,places)])
+      
+    makeNewQueue queue [] _ _ = queue
+    makeNewQueue ys ((choice,newNode):queue) places explored 
+      |newNode `elem` explored = makeNewQueue ys queue places explored
+      |otherwise = makeNewQueue (ys ++ [(newNode, places ++ [choice])]) queue places explored
+
+      
 
 allSteps :: Game -> [(Solution,Game)]
 allSteps = undefined 
           
-solve :: Game -> Solution
+solve ::   Game -> Solution
 solve = undefined
 
 walkthrough :: IO ()
