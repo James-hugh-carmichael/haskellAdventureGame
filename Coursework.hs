@@ -302,9 +302,9 @@ talk game (Choice _ choices) = iterChoices (zip [1..] choices)
     iterChoices :: [(Int, (String, Dialogue))] -> [(Game, [Int])]
     iterChoices [] = []
     iterChoices ((i, (_, d)):y) =
-      let currentResults = map (\(newGame, path) -> (newGame, i : path)) (talk game d)
-          remainingResults = iterChoices y
-      in currentResults ++ remainingResults 
+      let choiceRoute = map (\(newGame, path) -> (newGame, i : path)) (talk game d)
+          remainingChoices = iterChoices y
+      in choiceRoute ++ remainingChoices
 
 select :: Game -> [Party]
 select (Game m n currentParty partys) = subsequences (currentParty ++ partys !! n)
