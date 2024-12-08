@@ -149,7 +149,7 @@ dialogue game (Choice string choices) = do
             displayChoices :: (Show a, Show b) => [(a,(b, c))] -> IO ()
             displayChoices [] = return ()
             displayChoices ((number,(option, _)) : xs) = do
-                putStrLn (show number ++": " ++ show option)
+                putStrLn (show number ++ " " ++ show option)
                 displayChoices xs
 
             isValidSingleNumber :: String -> Bool
@@ -199,7 +199,6 @@ lineChecker 2 p = putStr (line2 ++ "\n" ++ format p)
 lineChecker 3 p = putStr (line3 ++ "\n" ++ format p)
 lineChecker 4 p = putStr (line4 ++ "\n" ++ format p)
 
----------------- break into multiple functions
 step :: Game -> IO Game
 step (Game m n currentParty partys) = do
   putStrLn (line1 ++ (theDescriptions !! n))
@@ -324,17 +323,16 @@ travel m n =
             newQueue = makeNewQueue xs choiceNewNode places explored
         in search newQueue (explored ++ [node]) (routes ++ [(node,places)])
       
+    makeNewQueue :: [(Node,[Int])] -> [(Int,Node)] -> [Node] -> [Node] -> [(Node,[Int])]
     makeNewQueue queue [] _ _ = queue
     makeNewQueue ys ((choice,newNode):queue) places explored 
       |newNode `elem` explored = makeNewQueue ys queue places explored
       |otherwise = makeNewQueue (ys ++ [(newNode, places ++ [choice])]) queue places explored
 
-      
-
 allSteps :: Game -> [(Solution,Game)]
 allSteps = undefined 
           
-solve ::   Game -> Solution
+solve :: Game -> Solution
 solve = undefined
 
 walkthrough :: IO ()
