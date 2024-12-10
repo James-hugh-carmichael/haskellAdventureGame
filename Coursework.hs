@@ -15,7 +15,7 @@ msort [x] = [x]
 msort xs  = msort (take n xs) `merge` msort (drop n xs)
   where
     n = length xs `div` 2
-    
+
 ------------------------- Game world types
 
 type Character = String
@@ -39,21 +39,21 @@ testGame i = Game [(0,1)] i ["Russell"] [[],["Brouwer","Heyting"]]
 ------------------------- Assignment 1: The game world
 connected :: Map -> Node -> [Node]
 connected (x:xs) n = connectedHelper (x:xs) n []
-  where 
+  where
     connectedHelper [] node acc = reverse acc
     connectedHelper (x:xs) node acc
       |node == fst x = connectedHelper xs node (snd x : acc)
       |node == snd x = connectedHelper xs node (fst x : acc)
       |otherwise = connectedHelper xs node acc
-    
+
 
 connect :: Node -> Node -> Map -> Map
 connect node1 node2 placeConnections
     |node1 == node2 = placeConnections
     |newConnection `elem`  placeConnections = filter (/= newConnection) placeConnections
     |otherwise = msort ((min node1 node2, max node1 node2) :  placeConnections)
-    where 
-      newConnection = (min node1 node2, max node1 node2)  
+    where
+      newConnection = (min node1 node2, max node1 node2)
 
 disconnect :: Node -> Node -> Map -> Map
 disconnect node1 node2 (x:xs) = filter (/= (min node1 node2, max node1 node2)) (x:xs)
@@ -161,7 +161,7 @@ dialogue game (Choice string choices) = do
               input <- getValidInput
               if input == "0"
                 then do return game
-                else do 
+                else do
                   let parsedInput = map read (words input)
                   if null parsedInput || head parsedInput < 1 || head parsedInput > length choices || length parsedInput /= 1
                     then do
@@ -238,10 +238,10 @@ step (Game m n currentParty partys) = do
         else do
           putStrLn line0
           stepLoop game
-    
+
     parse :: [String] -> [Int]
     parse = map read
-  
+
     displayedConnections :: [String]
     displayedConnections = map (theLocations !!) (connected m n)
 
@@ -259,7 +259,7 @@ game = loop start
       if gameState == Over then do return ()
       else do
         newState <- step gameState
-        loop newState 
+        loop newState
 
 ------------------------- Assignment 4: Safety upgrades
 
@@ -276,7 +276,7 @@ getValidInput = do
   x <- getLine
   if "0" `elem` words x
     then do return "0"
-    else do 
+    else do
       if isValidInput x
         then return x
         else do
@@ -301,37 +301,40 @@ talk game (Choice _ choices) = iterChoices (zip [1..] choices)
   where
     iterChoices :: [(Int, (String, Dialogue))] -> [(Game, [Int])]
     iterChoices [] = []
-    iterChoices ((i, (_, d)):y) =
-      let choiceRoute = map (\(newGame, path) -> (newGame, i : path)) (talk game d)
-          remainingChoices = iterChoices y
-      in choiceRoute ++ remainingChoices
+    iterChoices ((i, (_, d)):y) = map (\(newGame, path) -> (newGame, i : path)) (talk game d) ++ iterChoices y
 
 select :: Game -> [Party]
 select (Game m n currentParty partys) = subsequences (currentParty ++ partys !! n)
 
 travel :: Map -> Node -> [(Node,[Int])]
-travel m n =
-  search [(n,[])] [] []
-
-  where 
+travel m n = search [(n,[])] [] []
+  where
     search [] _ routes = routes
     search ((node,places):xs) explored routes
       |node `elem` explored = search xs explored routes
-      |otherwise = 
+      |otherwise =
         let newNodes = connected m node
             choiceNewNode = zip [1..] newNodes
             newQueue = makeNewQueue xs choiceNewNode places explored
         in search newQueue (explored ++ [node]) (routes ++ [(node,places)])
-      
+
     makeNewQueue :: [(Node,[Int])] -> [(Int,Node)] -> [Node] -> [Node] -> [(Node,[Int])]
     makeNewQueue queue [] _ _ = queue
-    makeNewQueue ys ((choice,newNode):queue) places explored 
+    makeNewQueue ys ((choice,newNode):queue) places explored
       |newNode `elem` explored = makeNewQueue ys queue places explored
       |otherwise = makeNewQueue (ys ++ [(newNode, places ++ [choice])]) queue places explored
 
 allSteps :: Game -> [(Solution,Game)]
-allSteps = undefined 
-          
+allSteps (Game m n currentParty partys) = undefined
+
+--- Gave Up :(
+--- have all combinations of locations and party possible choices in the dialogue but no characters
+--- now do I talk the dialogue???
+--- Plan
+--- use select to get all combinations of character talk
+--- use talk to get all combinations of dialogue and then pair with
+--- connections to get all the locations we can travel to, include nothing too
+
 solve :: Game -> Solution
 solve = undefined
 
